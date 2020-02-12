@@ -33,10 +33,60 @@ float4 _PlayerPos;
 half _Strength;
 half _PushRadius;
 
+//多人交互
+float4 _ObstaclePositions[100];
+float _PositionArray;
+
 inline float4 AnimateGrassVertex(float4 pos)
 {
 	return pos;
 }
+
+v2f vert_dyn(appdata v)
+{
+	v2f o;
+
+	/*float4	mdlPos = AnimateGrassVertex(v.vertex);
+
+	o.vertex = UnityObjectToClipPos(mdlPos);*/
+	float4 worldPos = mul(unity_ObjectToWorld, v.vertex);
+
+	// 草自身风吹草动的计算
+	float2 samplePos = worldPos.xz / _WaveControl.w;
+	samplePos += _Time.x * -_WaveControl.xz;
+
+	//通过noise 贴图控制随机摆动
+	fixed waveSample = tex2Dlod(_Noise, float4(samplePos, 0, 0)).r;
+
+	worldPos.x += sin(_Time.x * waveSample) * v.texcoord.y;
+	worldPos.z += sin(_Time.x * waveSample) * v.texcoord.y;
+
+
+	//草地交互的计算
+	for (int n = 0; n < _PositionArray; n++) {
+
+		float4 tem_PlayerPos = _ObstaclePositions[n];
+
+		float dis = distance(tem_PlayerPos, worldPos);
+		float pushDown = saturate((1 - dis + _PushRadius) * v.texcoord.y * _Strength);
+		float3 direction = normalize(worldPos.xyz - tem_PlayerPos.xyz);
+		direction.y *= 0.5;
+
+		worldPos.xyz += direction * pushDown;
+	}
+
+
+	///
+	o.vertex = mul(UNITY_MATRIX_VP, worldPos);
+
+
+
+	o.texcoord = TRANSFORM_TEX(v.texcoord, _MainTex);
+	UNITY_TRANSFER_FOG(o, o.vertex);
+	return o;
+}
+
+
 
 v2f vert(appdata v)
 {
@@ -50,9 +100,12 @@ v2f vert(appdata v)
 	// 草自身风吹草动的计算
 	float2 samplePos = worldPos.xz / _WaveControl.w;
 	samplePos += _Time.x * -_WaveControl.xz;
+
+	//通过noise 贴图控制随机摆动
 	fixed waveSample = tex2Dlod(_Noise, float4(samplePos, 0, 0)).r;
+
 	worldPos.x += sin(_Time.x * waveSample) * v.texcoord.y;
-	worldPos.y += sin(_Time.x * waveSample) * v.texcoord.y;
+	worldPos.z += sin(_Time.x * waveSample) * v.texcoord.y;
 
 
 	//草地交互的计算
